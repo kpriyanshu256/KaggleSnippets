@@ -42,6 +42,7 @@ class FocalLoss(nn.Module):
 
 ########################################### Label Smoothening ##########################################
 
+# smoothening is not exact, eps/num_classes is also added to the true label
 class LabelSmoothingLoss(torch.nn.Module):
     def __init__(self, smoothing: float = 0.1, reduction="mean", weight=None):
         super(LabelSmoothingLoss, self).__init__()
