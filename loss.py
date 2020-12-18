@@ -1,5 +1,7 @@
 import torch.nn as nn
+import torch.nn.functional as F
 
+################################################# Focal Loss #########################################
 # Single class
 class FocalLoss(nn.Module):
     def __init__(self, alpha=1, gamma=2, logits=False, reduce=True):
@@ -7,7 +9,7 @@ class FocalLoss(nn.Module):
         self.alpha = alpha
         self.gamma = gamma
         self.logits = logits
-        self.reduce = reduce 
+        self.reduce = reduce
     def forward(self, inputs, targets):nn.CrossEntropyLoss()
         BCE_loss = nn.CrossEntropyLoss()(inputs, targets, reduce=False)
         pt = torch.exp(-BCE_loss)
@@ -38,6 +40,8 @@ class FocalLoss(nn.Module):
             return F_loss
 
 
+########################################### Label Smoothening ##########################################
+
 class LabelSmoothingLoss(torch.nn.Module):
     def __init__(self, smoothing: float = 0.1, reduction="mean", weight=None):
         super(LabelSmoothingLoss, self).__init__()
@@ -60,7 +64,7 @@ class LabelSmoothingLoss(torch.nn.Module):
         if self.weight is not None:
             self.weight = self.weight.to(preds.device)
 
-        if self.training:
+        if self.training: # provision for training and validation
             n = preds.size(-1)
             log_preds = F.log_softmax(preds, dim=-1)
             loss = self.reduce_loss(-log_preds.sum(dim=-1))
@@ -70,3 +74,29 @@ class LabelSmoothingLoss(torch.nn.Module):
             return self.linear_combination(loss / n, nll)
         else:
             return torch.nn.functional.cross_entropy(preds, target, weight=self.weight)
+
+
+
+######################################## Focal Cosine Loss #########################################
+
+class FocalCosineLoss(nn.Module):
+    def __init__(self, alpha=1, gamma=2, xent=.1):
+        super(FocalCosineLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+
+        self.xent = xent
+
+        self.y = torch.Tensor([1]).cuda()
+
+    def forward(self, input, target, reduction="mean"):
+        cosine_loss = F.cosine_embedding_loss(input, F.one_hot(target, num_classes=input.size(-1)), self.y, reduction=reduction)
+
+        cent_loss = F.cross_entropy(F.normalize(input), target, reduce=False)
+        pt = torch.exp(-cent_loss)
+        focal_loss = self.alpha * (1-pt)**self.gamma * cent_loss
+
+        if reduction == "mean":
+            focal_loss = torch.mean(focal_loss)
+
+        return cosine_loss + self.xent * focal_loss
